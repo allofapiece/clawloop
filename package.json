@@ -1,0 +1,29 @@
+{
+  "name": "clawloop",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Spec-as-desired-state multi-agent autonomous coding orchestrator",
+  "license": "MIT",
+  "bin": {
+    "clawloop": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.7"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
