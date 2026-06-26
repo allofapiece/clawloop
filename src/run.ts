@@ -6,6 +6,7 @@ import { JsonSignalsManager } from "./signals/json-manager.js";
 import { createBackend } from "./backend/claude-code.js";
 import { runElaboration, recordHashes, appendDiary } from "./elaborator/elaborator.js";
 import { loadCoverage } from "./elaborator/validate.js";
+import { log } from "./log.js";
 import type { Backend } from "./backend/backend.js";
 import type { SignalsManager } from "./signals/types.js";
 
@@ -29,14 +30,22 @@ export interface IterationSummary {
  */
 export async function runIteration(deps: RunDeps, owner: string): Promise<IterationSummary> {
   const paths = resolvePaths(path.resolve(deps.cwd));
-  deps.manager.reap();
-  scan({ cwd: deps.cwd, manager: deps.manager });
+
+  const reverted = deps.manager.reap();
+  if (reverted.length) log.debug(`reaped ${reverted.length} expired lease(s)`);
+
+  log.debug("scanning user-spec and agent-spec");
+  const { created, pending } = scan({ cwd: deps.cwd, manager: deps.manager });
+  if (created.length) log.info(`scan: ${created.length} new signal(s), ${pending.length} pending`);
+  else log.debug(`scan: 0 new, ${pending.length} pending`);
 
   const batch = deps.manager.claimBatch(owner);
   if (!batch) return { idle: true };
 
+  log.info(`iteration ${owner}: elaborating ${batch.file} (${batch.signals.length} target(s))`);
   try {
     // The agent writes AS and may explicitly `signals solved` / `signals get` more work.
+    log.debug(`running backend for ${batch.file}`);
     await runElaboration(batch, deps.backend, paths);
 
     // Safety net: validate everything still leased by this owner and auto-solve the covered ones.
@@ -48,6 +57,9 @@ export async function runIteration(deps: RunDeps, owner: string): Promise<Iterat
     deps.manager.solve(solved.map((s) => s.id));
 
     appendDiary(paths, `${batch.file}: ${solved.length} solved, ${claimed.length - solved.length} unsolved`);
+    const unsolved = claimed.length - solved.length;
+    if (unsolved) log.warn(`${batch.file}: ${unsolved} target(s) unsolved — reverting to pending`);
+    log.info(`iteration done: ${batch.file} solved ${solved.length}/${claimed.length}`);
     return { idle: false, file: batch.file, claimed: claimed.length, solved: solved.length };
   } finally {
     deps.manager.releaseOwner(owner); // revert any unsolved signals to pending (attempt counted)
@@ -66,7 +78,7 @@ export async function run(options: RunOptions = {}): Promise<void> {
   const cwd = path.resolve(options.cwd ?? process.cwd());
   const paths = resolvePaths(cwd);
   if (!fs.existsSync(paths.clawloop)) {
-    process.stdout.write("no .clawloop found — run `clawloop init` first.\n");
+    log.error("no .clawloop found — run `clawloop init` first.");
     process.exitCode = 1;
     return;
   }
@@ -78,11 +90,14 @@ export async function run(options: RunOptions = {}): Promise<void> {
   let stop = false;
   const onSigint = () => {
     stop = true;
-    process.stdout.write("\nstopping after current iteration…\n");
+    log.info("stopping after current iteration…");
   };
   process.on("SIGINT", onSigint);
 
+  log.info(options.once ? "clawloop run (single iteration)" : "clawloop run — watching for signals (Ctrl-C to stop)");
+
   let n = 0;
+  let wasIdle = false;
   try {
     do {
       const owner = `run-${process.pid}-${++n}`;
@@ -96,10 +111,13 @@ export async function run(options: RunOptions = {}): Promise<void> {
 
       if (summary.idle) {
         if (options.once) break;
-        process.stdout.write(`idle — ${manager.pendingCount()} pending\n`);
+        // Announce idle once at info; subsequent poll ticks are debug-only (avoid 2s spam).
+        if (!wasIdle) log.info(`idle — ${manager.pendingCount()} pending; watching for changes`);
+        else log.debug(`idle tick — ${manager.pendingCount()} pending`);
+        wasIdle = true;
         await sleep(pollMs, () => stop);
       } else {
-        process.stdout.write(`elaborated ${summary.file}: solved ${summary.solved}/${summary.claimed}\n`);
+        wasIdle = false; // result already logged by runIteration
       }
     } while (!stop && !options.once);
   } finally {

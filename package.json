@@ -25,5 +25,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "consola": "^3.4.2"
   }
 }

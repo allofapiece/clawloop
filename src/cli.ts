@@ -11,6 +11,8 @@ interface ParsedCli {
   yes?: boolean;
   /** run: do a single iteration and exit. */
   once?: boolean;
+  /** run: raise log level to debug. */
+  debug?: boolean;
   /** signals: the subcommand. */
   signalsAction?: "get" | "solved";
   /** signals get: the us ref. */
@@ -40,11 +42,13 @@ export function parseCliArgs(argv: string[]): ParsedCli {
 
   if (first === "run") {
     let once = false;
+    let debug = false;
     for (const a of rest) {
       if (a === "--once") once = true;
+      else if (a === "--debug") debug = true;
       else return { command: "run", error: `unknown flag "${a}" for run` };
     }
-    return { command: "run", once };
+    return { command: "run", once, debug };
   }
 
   if (first === "scan") {
@@ -77,7 +81,7 @@ const HELP = [
   "Commands:",
   "  init [-y]    Scaffold .clawloop/ in the current directory.",
   "               -y, --yes   skip the survey and use defaults.",
-  "  run [--once] Drive elaboration continuously until Ctrl-C (--once: one iteration).",
+  "  run [--once] [--debug]   Drive elaboration until Ctrl-C (--once: one iteration; --debug: verbose).",
   "  scan         Scan US/AS once and enqueue signals.",
   "  signals get <us:id>        Claim another block's batch (agent, in-iteration).",
   "  signals solved <ids>       Mark signals solved (agent, in-iteration).",
@@ -153,6 +157,8 @@ async function main(): Promise<void> {
       await runInitCommand(parsed.yes ?? false);
       return;
     case "run": {
+      const { setLogLevel } = await import("./log.js");
+      setLogLevel(parsed.debug ? "debug" : "info");
       const { run } = await import("./run.js");
       await run({ once: parsed.once });
       return;
