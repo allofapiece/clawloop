@@ -5,9 +5,17 @@ import { fileURLToPath } from "node:url";
 import { runInit, DEFAULT_USER_SPEC } from "./commands/init.js";
 
 interface ParsedCli {
-  command: "init" | "help";
+  command: "init" | "run" | "scan" | "signals" | "help";
   /** init: skip the interactive survey and use defaults. */
   yes?: boolean;
+  /** run: do a single iteration and exit. */
+  once?: boolean;
+  /** signals: the subcommand. */
+  signalsAction?: "get" | "solved";
+  /** signals get: the us ref. */
+  ref?: string;
+  /** signals solved: the signal ids. */
+  ids?: string[];
   /** A parse error to report instead of running. */
   error?: string;
 }
@@ -29,6 +37,34 @@ export function parseCliArgs(argv: string[]): ParsedCli {
     return { command: "init", yes };
   }
 
+  if (first === "run") {
+    let once = false;
+    for (const a of rest) {
+      if (a === "--once") once = true;
+      else return { command: "run", error: `unknown flag "${a}" for run` };
+    }
+    return { command: "run", once };
+  }
+
+  if (first === "scan") {
+    if (rest.length > 0) return { command: "scan", error: `\`scan\` takes no arguments (got "${rest.join(" ")}")` };
+    return { command: "scan" };
+  }
+
+  if (first === "signals") {
+    const [action, ...args] = rest;
+    if (action === "get") {
+      if (args.length !== 1) return { command: "signals", error: "`signals get` needs exactly one <us:id>" };
+      return { command: "signals", signalsAction: "get", ref: args[0] };
+    }
+    if (action === "solved") {
+      const ids = args.flatMap((a) => a.split(",")).filter(Boolean);
+      if (ids.length === 0) return { command: "signals", error: "`signals solved` needs one or more <signal-id>" };
+      return { command: "signals", signalsAction: "solved", ids };
+    }
+    return { command: "signals", error: `unknown signals subcommand "${action ?? ""}" (use get | solved)` };
+  }
+
   return { command: "help", error: `unknown command "${first}"` };
 }
 
@@ -38,9 +74,13 @@ const HELP = [
   "Usage: clawloop <command> [options]",
   "",
   "Commands:",
-  "  init [-y]   Scaffold .clawloop/ in the current directory.",
-  "              -y, --yes   skip the survey and use defaults.",
-  "  help        Show this help.",
+  "  init [-y]    Scaffold .clawloop/ in the current directory.",
+  "               -y, --yes   skip the survey and use defaults.",
+  "  run [--once] Drive elaboration continuously until Ctrl-C (--once: one iteration).",
+  "  scan         Scan US/AS once and enqueue signals.",
+  "  signals get <us:id>        Claim another block's batch (agent, in-iteration).",
+  "  signals solved <ids>       Mark signals solved (agent, in-iteration).",
+  "  help         Show this help.",
   "",
 ].join("\n");
 
@@ -70,6 +110,34 @@ async function runInitCommand(yes: boolean): Promise<void> {
   }
 }
 
+/** The agent-facing `signals` subcommands. `CLAWLOOP_OWNER` ties them to the running iteration. */
+async function runSignalsCommand(parsed: ParsedCli): Promise<void> {
+  const owner = process.env.CLAWLOOP_OWNER;
+  if (!owner) {
+    stdout.write("CLAWLOOP_OWNER is not set — `signals get/solved` run inside an elaboration iteration.\n");
+    process.exitCode = 1;
+    return;
+  }
+  const ctx = { cwd: process.cwd(), owner };
+  const { signalsGet, signalsSolved } = await import("./commands/signals.js");
+
+  if (parsed.signalsAction === "get") {
+    const res = signalsGet(ctx, parsed.ref!);
+    if (res.reason) {
+      stdout.write(`${res.reason}\n`);
+      process.exitCode = 1;
+    } else {
+      stdout.write(res.claimed!.map((s) => `${s.id}\t${s.type}\tus:${s.target}`).join("\n") + "\n");
+    }
+    return;
+  }
+
+  const res = signalsSolved(ctx, parsed.ids!);
+  if (res.solved.length) stdout.write(`solved: ${res.solved.join(", ")}\n`);
+  for (const r of res.rejected) stdout.write(`rejected ${r.id}: ${r.reason}\n`);
+  if (res.rejected.length) process.exitCode = 1;
+}
+
 async function main(): Promise<void> {
   const parsed = parseCliArgs(process.argv.slice(2));
 
@@ -82,6 +150,20 @@ async function main(): Promise<void> {
   switch (parsed.command) {
     case "init":
       await runInitCommand(parsed.yes ?? false);
+      return;
+    case "run": {
+      const { run } = await import("./run.js");
+      await run({ once: parsed.once });
+      return;
+    }
+    case "scan": {
+      const { scan } = await import("./scan.js");
+      const { created, pending } = scan();
+      stdout.write(`scan: ${created.length} new signal(s), ${pending.length} pending\n`);
+      return;
+    }
+    case "signals":
+      await runSignalsCommand(parsed);
       return;
     case "help":
       stdout.write(HELP);

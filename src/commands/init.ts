@@ -61,18 +61,48 @@ export function runInit(options: InitOptions = {}): InitResult {
     created.push(rel);
   };
 
+  const ensureFile = (rel: string, content: string) => {
+    const abs = path.resolve(root, rel);
+    if (fs.existsSync(abs)) {
+      skipped.push(rel);
+      return;
+    }
+    fs.writeFileSync(abs, content);
+    created.push(rel);
+  };
+
   ensureDir(".clawloop");
   ensureDir(userSpec);
   ensureDir(".clawloop/agent-spec");
+  ensureDir(".clawloop/agents/elaborator");
 
-  const settingsRel = ".clawloop/settings.json";
-  const settingsAbs = path.resolve(root, settingsRel);
-  if (fs.existsSync(settingsAbs)) {
-    skipped.push(settingsRel);
-  } else {
-    fs.writeFileSync(settingsAbs, JSON.stringify(settings(userSpec), null, 2) + "\n");
-    created.push(settingsRel);
-  }
+  ensureFile(".clawloop/settings.json", JSON.stringify(settings(userSpec), null, 2) + "\n");
+  ensureFile(".clawloop/agents/elaborator/instructions.md", ELABORATOR_INSTRUCTIONS);
+  ensureFile(".clawloop/agents/elaborator/diary.md", "");
+  ensureFile(".clawloop/.gitignore", CLAWLOOP_GITIGNORE);
 
   return { root, userSpec, created, skipped };
 }
+
+/** Runtime files that are machine-local / regenerable — not the durable, committed spec or queue. */
+const CLAWLOOP_GITIGNORE = ["leases.json", ".queue.lock/", ""].join("\n");
+
+/** Default Elaborator prompt. Editable per-project; survives re-init and `git pull`. */
+const ELABORATOR_INSTRUCTIONS = `# Elaborator
+
+You expand the User Spec (US) into the Agent Spec (AS): the fully-resolved interpretation, with
+every ambiguity decided.
+
+Rules:
+- The US is the source of truth. NEVER edit User Spec files. AS must never contradict the US.
+- Resolve ambiguity conservatively (least-surprising, reversible defaults); do not invent
+  requirements the US doesn't imply.
+- Write each AS block as a MyST block with an \`(id)=\` label or heading, and a \`:expands:\` line
+  listing the US ids it refines, e.g. \`:expands: us:cart-remove\`. An AS block may also depend on
+  other AS blocks via \`as:<id>\`.
+- Only elaborate the targets named for this iteration. Do not touch unrelated blocks.
+
+You may read any User Spec file for context. To also work on a related block in another file,
+claim it first with \`clawloop signals get us:<id>\`. Report finished targets with
+\`clawloop signals solved <signal-id>,<signal-id>\`.
+`;

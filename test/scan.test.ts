@@ -32,7 +32,7 @@ describe("scan", () => {
     const { created } = scan({ cwd: tmp, now: NOW });
 
     expect(created).toEqual([
-      { id: "sig-1", type: "uncovered", target: "cart-remove", createdAt: NOW() },
+      { id: "sig-1", type: "uncovered", target: "cart-remove", file: "cart.md", attempt: 0, createdAt: NOW() },
     ]);
   });
 
@@ -53,7 +53,7 @@ describe("scan", () => {
     const { created } = scan({ cwd: tmp, now: NOW });
 
     expect(created).toEqual([
-      { id: "sig-1", type: "changed", target: "cart-remove", createdAt: NOW() },
+      { id: "sig-1", type: "changed", target: "cart-remove", file: "cart.md", attempt: 0, createdAt: NOW() },
     ]);
   });
 
@@ -69,7 +69,7 @@ describe("scan", () => {
     // Edit the requirement text → scan must notice the drift.
     usFile("cart.md", "(cart-remove)=\nEach cart row has a remove control, with a confirm dialog.");
     expect(scan({ cwd: tmp, now: NOW }).created).toEqual([
-      { id: "sig-1", type: "changed", target: "cart-remove", createdAt: NOW() },
+      { id: "sig-1", type: "changed", target: "cart-remove", file: "cart.md", attempt: 0, createdAt: NOW() },
     ]);
   });
 
@@ -81,7 +81,13 @@ describe("scan", () => {
 
     expect(first.created).toHaveLength(1);
     expect(second.created).toHaveLength(0);
-    expect(second.signals).toHaveLength(1);
+    expect(second.pending).toHaveLength(1);
+  });
+
+  it("errors on a globally-duplicate US block id across files", () => {
+    usFile("a.md", "(dup)=\nfirst");
+    usFile("b.md", "(dup)=\nsecond");
+    expect(() => scan({ cwd: tmp, now: NOW })).toThrow(/duplicate User Spec block id/);
   });
 
   it("persists signals to .clawloop/signals.json", () => {
