@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import * as readline from "node:readline/promises";
+import { realpathSync } from "node:fs";
 import { stdin, stdout, argv } from "node:process";
 import { fileURLToPath } from "node:url";
 import { runInit, DEFAULT_USER_SPEC } from "./commands/init.js";
@@ -171,8 +172,9 @@ async function main(): Promise<void> {
   }
 }
 
-// Only run when invoked directly (not when imported by tests).
-if (argv[1] && fileURLToPath(import.meta.url) === argv[1]) {
+// Only run when invoked directly (not when imported by tests). argv[1] may be a bin symlink
+// (e.g. via `npm link`), so resolve it to the real path before comparing.
+if (argv[1] && realpathSync(argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((err) => {
     stdout.write(`${err instanceof Error ? err.message : String(err)}\n`);
     process.exitCode = 1;
