@@ -20,7 +20,7 @@ function intentLine(s: Signal): string {
 /** Build the elaborator prompt. Pure — no I/O, fully unit-testable. */
 export function buildElaboratorPrompt(parts: PromptParts): string {
   const { instructions, usContext, diaryTail, batch } = parts;
-  const asFile = `agent-spec/${batch.file}`;
+  const asFile = `.clawloop/agent-spec/${batch.file}`;
 
   const sections = [
     instructions.trim(),
