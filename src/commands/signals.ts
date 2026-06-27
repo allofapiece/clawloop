@@ -1,4 +1,5 @@
 import { resolvePaths } from "../store.js";
+import { loadBlocks } from "../spec/load.js";
 import { JsonSignalsManager } from "../signals/json-manager.js";
 import { loadCoverage } from "../elaborator/validate.js";
 import { recordHashes } from "../elaborator/elaborator.js";
@@ -11,6 +12,16 @@ export interface SignalsContext {
   manager?: SignalsManager;
 }
 
+export interface AddContext {
+  cwd: string;
+  manager?: SignalsManager;
+}
+
+export interface AddResult {
+  created: Signal[];
+  reason?: string;
+}
+
 export interface GetResult {
   claimed?: Signal[];
   reason?: string;
@@ -19,6 +30,38 @@ export interface GetResult {
 export interface SolvedResult {
   solved: string[];
   rejected: { id: string; reason: string }[];
+}
+
+/**
+ * `clawloop signals add revisit:<ref>` — enqueue `revisit` signals to force re-elaboration of
+ * already-covered blocks. `ref` is `all` (every US block), a US block id, or a pending signal id
+ * (resolved to its target). Owner-free: this only enqueues, it does not claim.
+ */
+export function signalsAdd(ctx: AddContext, ref: string): AddResult {
+  const paths = resolvePaths(ctx.cwd);
+  const manager = ctx.manager ?? new JsonSignalsManager(paths);
+  const us = loadBlocks(paths.userSpec);
+
+  let targets: { target: string; file: string }[];
+  if (ref === "all") {
+    targets = us.map((b) => ({ target: b.id, file: b.file }));
+  } else {
+    const block = us.find((b) => b.id === ref);
+    if (block) {
+      targets = [{ target: block.id, file: block.file }];
+    } else {
+      const sig = manager.list().find((s) => s.id === ref);
+      if (sig) targets = [{ target: sig.target, file: sig.file }];
+      else return { created: [], reason: `no US block or pending signal "${ref}"` };
+    }
+  }
+
+  const created: Signal[] = [];
+  for (const t of targets) {
+    const s = manager.add({ type: "revisit", target: t.target, file: t.file });
+    if (s) created.push(s);
+  }
+  return { created };
 }
 
 /** `clawloop signals get us:<id>` — claim the file batch containing `<id>` under the current owner. */

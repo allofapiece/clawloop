@@ -14,7 +14,7 @@ interface ParsedCli {
   /** run: raise log level to debug. */
   debug?: boolean;
   /** signals: the subcommand. */
-  signalsAction?: "get" | "solved";
+  signalsAction?: "get" | "solved" | "add";
   /** signals get: the us ref. */
   ref?: string;
   /** signals solved: the signal ids. */
@@ -67,7 +67,17 @@ export function parseCliArgs(argv: string[]): ParsedCli {
       if (ids.length === 0) return { command: "signals", error: "`signals solved` needs one or more <signal-id>" };
       return { command: "signals", signalsAction: "solved", ids };
     }
-    return { command: "signals", error: `unknown signals subcommand "${action ?? ""}" (use get | solved)` };
+    if (action === "add") {
+      const spec = args[0];
+      if (!spec) return { command: "signals", error: "`signals add` needs <type:ref>, e.g. revisit:all" };
+      const idx = spec.indexOf(":");
+      const type = idx >= 0 ? spec.slice(0, idx) : spec;
+      const ref = idx >= 0 ? spec.slice(idx + 1) : "";
+      if (type !== "revisit") return { command: "signals", error: `only 'revisit' signals can be added (got "${type}")` };
+      if (!ref) return { command: "signals", error: "`signals add revisit:<signal-id|all>` needs a ref" };
+      return { command: "signals", signalsAction: "add", ref };
+    }
+    return { command: "signals", error: `unknown signals subcommand "${action ?? ""}" (use get | solved | add)` };
   }
 
   return { command: "help", error: `unknown command "${first}"` };
@@ -85,6 +95,7 @@ const HELP = [
   "  scan         Scan US/AS once and enqueue signals.",
   "  signals get <us:id>        Claim another block's batch (agent, in-iteration).",
   "  signals solved <ids>       Mark signals solved (agent, in-iteration).",
+  "  signals add revisit:<id|all>   Queue re-elaboration of covered block(s).",
   "  help         Show this help.",
   "",
 ].join("\n");
@@ -115,8 +126,22 @@ async function runInitCommand(yes: boolean): Promise<void> {
   }
 }
 
-/** The agent-facing `signals` subcommands. `CLAWLOOP_OWNER` ties them to the running iteration. */
+/** The `signals` subcommands. `add` only enqueues; `get`/`solved` need the iteration's CLAWLOOP_OWNER. */
 async function runSignalsCommand(parsed: ParsedCli): Promise<void> {
+  const { signalsGet, signalsSolved, signalsAdd } = await import("./commands/signals.js");
+
+  // `add` enqueues work (like scan) — no owner / lease needed.
+  if (parsed.signalsAction === "add") {
+    const res = signalsAdd({ cwd: process.cwd() }, parsed.ref!);
+    if (res.reason) {
+      stdout.write(`${res.reason}\n`);
+      process.exitCode = 1;
+    } else {
+      stdout.write(`added ${res.created.length} revisit signal(s)\n`);
+    }
+    return;
+  }
+
   const owner = process.env.CLAWLOOP_OWNER;
   if (!owner) {
     stdout.write("CLAWLOOP_OWNER is not set — `signals get/solved` run inside an elaboration iteration.\n");
@@ -124,7 +149,6 @@ async function runSignalsCommand(parsed: ParsedCli): Promise<void> {
     return;
   }
   const ctx = { cwd: process.cwd(), owner };
-  const { signalsGet, signalsSolved } = await import("./commands/signals.js");
 
   if (parsed.signalsAction === "get") {
     const res = signalsGet(ctx, parsed.ref!);

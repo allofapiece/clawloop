@@ -5,7 +5,7 @@ import path from "node:path";
 import { runInit } from "../src/commands/init.js";
 import { resolvePaths } from "../src/store.js";
 import { JsonSignalsManager } from "../src/signals/json-manager.js";
-import { signalsGet, signalsSolved } from "../src/commands/signals.js";
+import { signalsGet, signalsSolved, signalsAdd } from "../src/commands/signals.js";
 import { scan } from "../src/scan.js";
 
 let tmp: string;
@@ -44,6 +44,45 @@ describe("signals get", () => {
   it("reports when there is no pending signal for the block", () => {
     const res = signalsGet({ cwd: tmp, owner: "w1", manager: manager() }, "us:nope");
     expect(res.reason).toMatch(/no pending signal/);
+  });
+});
+
+describe("signals add (revisit)", () => {
+  it("queues a revisit for every US block with revisit:all", () => {
+    usFile("a.md", "(one)=\nfirst");
+    usFile("b.md", "(two)=\nsecond");
+    const m = manager();
+
+    const res = signalsAdd({ cwd: tmp, manager: m }, "all");
+
+    expect(res.created.map((s) => s.target).sort()).toEqual(["one", "two"]);
+    expect(res.created.every((s) => s.type === "revisit")).toBe(true);
+    expect(m.list().map((s) => `${s.type}:${s.target}`).sort()).toEqual(["revisit:one", "revisit:two"]);
+  });
+
+  it("queues a revisit for a single US block by id", () => {
+    usFile("a.md", "(one)=\nfirst\n\n(two)=\nsecond");
+    const m = manager();
+
+    const res = signalsAdd({ cwd: tmp, manager: m }, "two");
+
+    expect(res.created).toHaveLength(1);
+    expect(res.created[0]).toMatchObject({ type: "revisit", target: "two", file: "a.md" });
+  });
+
+  it("reports when the ref matches no block or pending signal", () => {
+    usFile("a.md", "(one)=\nfirst");
+    const res = signalsAdd({ cwd: tmp, manager: manager() }, "nope");
+    expect(res.reason).toMatch(/no US block or pending signal/);
+  });
+
+  it("dedupes a revisit that is already pending", () => {
+    usFile("a.md", "(one)=\nfirst");
+    const m = manager();
+    signalsAdd({ cwd: tmp, manager: m }, "one");
+    const second = signalsAdd({ cwd: tmp, manager: m }, "one");
+    expect(second.created).toHaveLength(0);
+    expect(m.list()).toHaveLength(1);
   });
 });
 

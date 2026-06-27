@@ -8,6 +8,7 @@ const batch: Batch = {
   signals: [
     { id: "sig-1", type: "uncovered", target: "cart-remove", file: "cart.md", attempt: 1, createdAt: "t" },
     { id: "sig-2", type: "changed", target: "cart-clear", file: "cart.md", attempt: 1, createdAt: "t" },
+    { id: "sig-3", type: "revisit", target: "cart-empty", file: "cart.md", attempt: 1, createdAt: "t" },
   ],
 };
 
@@ -25,6 +26,7 @@ describe("buildElaboratorPrompt", () => {
     expect(prompt).toContain("agent-spec/cart.md");
     expect(prompt).toContain("CREATE Agent Spec for `us:cart-remove` (signal sig-1)");
     expect(prompt).toContain("REVISE Agent Spec for `us:cart-clear` (signal sig-2)");
+    expect(prompt).toContain("REVISIT `us:cart-empty` (signal sig-3)");
     expect(prompt).toContain("clawloop signals solved");
   });
 

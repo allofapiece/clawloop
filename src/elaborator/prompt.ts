@@ -12,9 +12,14 @@ export interface PromptParts {
 }
 
 function intentLine(s: Signal): string {
-  return s.type === "uncovered"
-    ? `- CREATE Agent Spec for \`us:${s.target}\` (signal ${s.id}) — no AS covers it yet.`
-    : `- REVISE Agent Spec for \`us:${s.target}\` (signal ${s.id}) — its User Spec text changed.`;
+  switch (s.type) {
+    case "uncovered":
+      return `- CREATE Agent Spec for \`us:${s.target}\` (signal ${s.id}) — no AS covers it yet.`;
+    case "changed":
+      return `- REVISE Agent Spec for \`us:${s.target}\` (signal ${s.id}) — its User Spec text changed.`;
+    case "revisit":
+      return `- REVISIT \`us:${s.target}\` (signal ${s.id}) — reconsider and improve its existing Agent Spec.`;
+  }
 }
 
 /** Build the elaborator prompt. Pure — no I/O, fully unit-testable. */
@@ -41,6 +46,7 @@ export function buildElaboratorPrompt(parts: PromptParts): string {
       batch.signals.map(intentLine).join("\n"),
       "",
       "For each target, write an AS block whose `:expands:` includes `us:<target-id>`.",
+      "Describe the complete desired END-STATE in detail — not a program or implementation.",
       "",
       "If a related block in another file must change too, claim it with",
       "`clawloop signals get us:<id>`. When you finish targets, report them with",

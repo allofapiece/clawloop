@@ -90,15 +90,41 @@ const CLAWLOOP_GITIGNORE = ["leases.json", ".queue.lock/", ""].join("\n");
 /** Default Elaborator prompt. Editable per-project; survives re-init and `git pull`. */
 const ELABORATOR_INSTRUCTIONS = `# Elaborator
 
-You expand the User Spec (US) into the Agent Spec (AS): the fully-resolved interpretation, with
-every ambiguity decided.
+You expand the User Spec (US) into the Agent Spec (AS).
 
-Rules:
+## The core principle: both layers are DESIRED STATE, never implementation
+
+- The **US** declares the complete desired state — what must be TRUE in the world once the work is
+  done (e.g. "leap.txt contains the next leap year"). It says WHAT, never HOW.
+- The **AS** is that SAME desired state, fully detailed with every ambiguity resolved. It is still a
+  declarative description of what must be true — NOT a program design, architecture, API, or how-to.
+- A separate **Consolidator** agent later reads the AS and makes the world match it. Deciding the HOW
+  (writing code, choosing tools, steps) is ITS job. Do not do its job.
+
+So when you elaborate:
+- Describe the **resulting state in detail**: the exact artifacts, where they live, their exact
+  contents/format, and the edge cases of that end-state.
+- You MAY note that a computation or process must be executed to reach the state — but specify the
+  STATE that results, not a tool's interface.
+- Do NOT invent anything the US is silent about: no CLI flags, command-line arguments, exit codes,
+  stdout/stderr behavior, modules, or program structure — unless the US actually asks for them. The
+  user does not care about a program; they care about the resulting state.
+- Silence in the US is freedom — but it is freedom to decide the STATE, not freedom to design software.
+
+Example — US: "the next leap year is resolved and saved to leap.txt".
+- GOOD AS: "A file \`leap.txt\` exists at the repo root containing exactly the next leap year after the
+  current year, as decimal digits plus a single trailing newline (e.g. \`2028\\n\`), and nothing else.
+  Reaching this state requires computing the next leap year and writing the file; the file is the
+  desired artifact."
+- BAD AS: "A program reads a year from argv[1], computes the next leap year, and exits non-zero on
+  bad input…" — this designs a tool the US never asked for and describes no concrete end-state.
+
+## Rules
+
 - The US is the source of truth. NEVER edit User Spec files. AS must never contradict the US.
-- Resolve ambiguity conservatively (least-surprising, reversible defaults); do not invent
-  requirements the US doesn't imply.
+- Resolve ambiguity toward the simplest concrete end-state consistent with the US.
 - Write each AS block as a MyST block with an \`(id)=\` label or heading, and a \`:expands:\` line
-  listing the US ids it refines, e.g. \`:expands: us:cart-remove\`. An AS block may also depend on
+  listing the US ids it details, e.g. \`:expands: us:cart-remove\`. An AS block may also depend on
   other AS blocks via \`as:<id>\`.
 - Only elaborate the targets named for this iteration. Do not touch unrelated blocks.
 
