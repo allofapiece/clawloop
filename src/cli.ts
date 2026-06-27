@@ -208,15 +208,14 @@ async function main(): Promise<void> {
       await runSignalsCommand(parsed);
       return;
     case "spec": {
-      const { validateSpec } = await import("./commands/spec.js");
-      const problems = validateSpec(process.cwd());
+      const { validateSpec } = await import("./spec/audit.js");
+      const { resolvePaths } = await import("./store.js");
+      const problems = validateSpec(resolvePaths(process.cwd()));
       for (const p of problems) {
-        stdout.write(`${p.level === "error" ? "✗" : "⚠"} ${p.file} [${p.block}]: ${p.message}\n`);
+        stdout.write(`✗ ${p.file} [${p.block}]: ${p.message}\n`);
       }
-      const errors = problems.filter((p) => p.level === "error").length;
-      const warns = problems.length - errors;
-      stdout.write(`spec validate: ${errors} error(s), ${warns} warning(s)\n`);
-      if (errors > 0) process.exitCode = 1;
+      stdout.write(`spec validate: ${problems.length} error(s)\n`);
+      if (problems.length > 0) process.exitCode = 1;
       return;
     }
     case "help":

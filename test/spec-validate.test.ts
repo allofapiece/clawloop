@@ -3,7 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { runInit } from "../src/commands/init.js";
-import { validateSpec } from "../src/commands/spec.js";
+import { resolvePaths } from "../src/store.js";
+import { validateSpec } from "../src/spec/audit.js";
 
 let tmp: string;
 
@@ -21,35 +22,33 @@ const usFile = (name: string, body: string) =>
 const asFile = (name: string, body: string) =>
   fs.writeFileSync(path.join(tmp, ".clawloop/agent-spec", name), body);
 
-function messages(level: "error" | "warning") {
-  return validateSpec(tmp)
-    .filter((p) => p.level === level)
-    .map((p) => p.message);
-}
+const audit = () => validateSpec(resolvePaths(tmp));
+const kinds = () => audit().map((p) => p.kind);
 
 describe("validateSpec", () => {
   it("passes clean for a well-formed AS", () => {
     usFile("u.md", "(general)=\n# General\nDesired state.");
     asFile("a.md", "(as-main)=\n## Main\n:expands: us:general\n\nbody");
-    expect(validateSpec(tmp)).toEqual([]);
+    expect(audit()).toEqual([]);
   });
 
-  it("errors on a dangling :expands: (us block missing)", () => {
+  it("flags a dangling :expands: (us block missing)", () => {
     asFile("a.md", "(as-x)=\n## X\n:expands: us:ghost\n\nbody");
-    expect(messages("error")).toContain(":expands: us:ghost — no such User Spec block");
+    expect(kinds()).toContain("dangling-expands");
   });
 
-  it("errors on a dangling :depends-on: (as block missing)", () => {
+  it("flags a dangling :depends-on: (as block missing)", () => {
     usFile("u.md", "(general)=\n# General\nstate");
     asFile("a.md", "(as-x)=\n## X\n:expands: us:general\n:depends-on: as:nope\n\nbody");
-    expect(messages("error")).toContain(":depends-on: as:nope — no such Agent Spec block");
+    expect(kinds()).toContain("dangling-depends");
   });
 
-  it("warns on a loose block and on a heading-slug id", () => {
-    // no (id)= label, no :expands:/:depends-on: → both warnings
+  it("flags loose and heading-slug-id blocks as errors", () => {
+    // no (id)= label, no :expands:/:depends-on:
     asFile("a.md", "## Technology decisions\n\nUse Three.js.");
-    const warns = messages("warning");
-    expect(warns).toContain("loose block — no :expands: or :depends-on:; link it to the graph or remove it");
-    expect(warns.some((m) => m.includes("heading slug"))).toBe(true);
+    const found = kinds();
+    expect(found).toContain("loose");
+    expect(found).toContain("no-id");
+    expect(audit().every((p) => p.level === "error")).toBe(true);
   });
 });

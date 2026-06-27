@@ -1,15 +1,17 @@
-export type SignalType = "uncovered" | "changed" | "revisit" | "orphaned";
+export type SignalType = "uncovered" | "changed" | "revisit" | "orphaned" | "validation_failed";
 
 /** A unit of elaboration work. Durable + committed (the queue is part of `.clawloop`). */
 export interface Signal {
   id: string;
   type: SignalType;
-  /** US block id this signal is about. */
+  /** What the signal is about: a US block id, or (for validation_failed) the AS file to fix. */
   target: string;
-  /** US file (relative to the user-spec dir, posix) the target lives in — the batch/lease unit. */
+  /** The file (relative, posix) this signal's work lives in — the batch/lease unit. */
   file: string;
   /** How many times an agent has been handed this signal. Recorded for future priority escalation. */
   attempt: number;
+  /** Extra context (e.g. the validation errors for a validation_failed signal). */
+  detail?: string;
   createdAt: string;
 }
 
@@ -28,6 +30,7 @@ export interface NewSignal {
   type: SignalType;
   target: string;
   file: string;
+  detail?: string;
 }
 
 /**

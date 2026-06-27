@@ -5,7 +5,7 @@ import { resolvePaths, readSettings } from "./store.js";
 import { JsonSignalsManager } from "./signals/json-manager.js";
 import { createBackend } from "./backend/claude-code.js";
 import { runElaboration, recordHashes, forgetHashes, appendDiary } from "./elaborator/elaborator.js";
-import { loadCoverage, isResolved } from "./elaborator/validate.js";
+import { resolutionContext, isResolved } from "./elaborator/validate.js";
 import { log } from "./log.js";
 import type { Backend } from "./backend/backend.js";
 import type { SignalsManager } from "./signals/types.js";
@@ -51,12 +51,13 @@ export async function runIteration(deps: RunDeps, owner: string): Promise<Iterat
     log.debug(`running backend for ${batch.file}`);
     await runElaboration(batch, deps.backend, paths);
 
-    // Safety net: validate everything still leased by this owner and auto-solve the covered ones.
+    // Safety net: re-derive resolution state and auto-solve whatever this owner resolved.
     // (The agent may already have archived some explicitly via `clawloop signals solved`.)
     const claimed = deps.manager.claimedBy(owner);
-    const covered = loadCoverage(paths);
-    const solved = claimed.filter((s) => isResolved(s, covered));
-    recordHashes(paths, solved.filter((s) => s.type !== "orphaned").map((s) => s.target));
+    const ctx = resolutionContext(paths);
+    const solved = claimed.filter((s) => isResolved(s, ctx));
+    const usSide = (s: { type: string }) => s.type === "uncovered" || s.type === "changed" || s.type === "revisit";
+    recordHashes(paths, solved.filter(usSide).map((s) => s.target));
     forgetHashes(paths, solved.filter((s) => s.type === "orphaned").map((s) => s.target));
     deps.manager.solve(solved.map((s) => s.id));
 

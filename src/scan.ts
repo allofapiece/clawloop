@@ -1,5 +1,6 @@
 import path from "node:path";
 import { loadBlocks, assertUniqueIds } from "./spec/load.js";
+import { validateSpec } from "./spec/audit.js";
 import { resolvePaths, readState } from "./store.js";
 import { JsonSignalsManager } from "./signals/json-manager.js";
 import type { Signal, SignalsManager } from "./signals/types.js";
@@ -66,9 +67,28 @@ export function scan(options: ScanOptions = {}): ScanResult {
     }
   }
 
-  // Prune obsolete US-side signals whose block was deleted — the orphaned signal supersedes them,
-  // and a "revise/create us:X" for a block that no longer exists is invalid.
-  const dropped = manager.list().filter((s) => s.type !== "orphaned" && !usIds.has(s.target));
+  // Validation: anything the audit flags (except dangling-expands, which `orphaned` already owns)
+  // becomes a validation_failed signal per AS file, carrying the errors as detail.
+  const errorsByFile = new Map<string, string[]>();
+  for (const p of validateSpec(paths)) {
+    if (p.kind === "dangling-expands") continue;
+    const list = errorsByFile.get(p.file) ?? [];
+    list.push(`[${p.block}] ${p.message}`);
+    errorsByFile.set(p.file, list);
+  }
+  for (const [file, msgs] of errorsByFile) {
+    add(manager.add({ type: "validation_failed", target: file, file, detail: msgs.join("; ") }));
+  }
+
+  // Prune obsolete signals: US-side signals whose block was deleted (the orphaned signal supersedes
+  // them), and validation_failed signals for files that now pass.
+  const usSide = new Set<string>(["uncovered", "changed", "revisit"]);
+  const errorFiles = new Set(errorsByFile.keys());
+  const dropped = manager.list().filter(
+    (s) =>
+      (usSide.has(s.type) && !usIds.has(s.target)) ||
+      (s.type === "validation_failed" && !errorFiles.has(s.target)),
+  );
   manager.drop(dropped.map((s) => s.id));
 
   return { created, dropped, pending: manager.list() };

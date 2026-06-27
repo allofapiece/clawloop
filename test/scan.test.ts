@@ -119,6 +119,28 @@ describe("scan", () => {
     expect(result.pending.map((s) => `${s.type}:${s.target}`)).toEqual(["orphaned:beta"]); // only orphan remains
   });
 
+  it("emits a validation_failed signal for a dangling :depends-on: (and drops it once fixed)", () => {
+    usFile("u.md", "(general)=\n# General\nstate");
+    asFile("a.md", "(as-x)=\n## X\n:expands: us:general\n:depends-on: as:ghost\n\nbody");
+
+    const created = scan({ cwd: tmp, now: NOW }).created.filter((s) => s.type === "validation_failed");
+    expect(created).toHaveLength(1);
+    expect(created[0]).toMatchObject({ type: "validation_failed", target: "a.md", file: "a.md" });
+    expect(created[0].detail).toMatch(/depends-on: as:ghost/);
+
+    // fix the dangling dep → next scan drops the now-obsolete validation_failed
+    asFile("a.md", "(as-x)=\n## X\n:expands: us:general\n\nbody");
+    const after = scan({ cwd: tmp, now: NOW });
+    expect(after.pending.some((s) => s.type === "validation_failed")).toBe(false);
+  });
+
+  it("does NOT double-emit validation_failed for a dangling :expands: (orphaned owns it)", () => {
+    asFile("a.md", "(as-x)=\n## X\n:expands: us:ghost\n\nbody");
+    const types = scan({ cwd: tmp, now: NOW }).created.map((s) => s.type);
+    expect(types).toContain("orphaned");
+    expect(types).not.toContain("validation_failed");
+  });
+
   it("errors on a globally-duplicate US block id across files", () => {
     usFile("a.md", "(dup)=\nfirst");
     usFile("b.md", "(dup)=\nsecond");

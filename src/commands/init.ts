@@ -154,8 +154,10 @@ goal and the method, it does not pre-bake a result.
 - Only elaborate the targets named for this iteration. Do not touch unrelated blocks.
 - If a target is marked REMOVE, its User Spec block was deleted — delete the Agent Spec that expands
   it (and the file if it becomes empty). Do not re-create it.
-- When you finish, run \`clawloop spec validate\` and fix every error it reports (dangling refs) and,
-  ideally, its warnings (loose or unlabeled blocks) before reporting the targets solved.
+- When you finish elaborating, you MUST run \`clawloop spec validate\`. If it reports any errors
+  (dangling refs, loose blocks, missing \`(id)=\` labels), fix them and re-run until it passes with
+  **0 errors** before reporting the targets solved. Any errors left behind become \`validation_failed\`
+  signals you (or another iteration) will have to resolve later.
 
 You may read any User Spec file for context. To also work on a related block in another file, claim it
 first with \`clawloop signals get us:<id>\`. Report finished targets with

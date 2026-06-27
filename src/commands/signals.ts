@@ -1,7 +1,7 @@
 import { resolvePaths } from "../store.js";
 import { loadBlocks } from "../spec/load.js";
 import { JsonSignalsManager } from "../signals/json-manager.js";
-import { loadCoverage, isResolved } from "../elaborator/validate.js";
+import { resolutionContext, isResolved } from "../elaborator/validate.js";
 import { recordHashes, forgetHashes } from "../elaborator/elaborator.js";
 import type { Signal, SignalsManager } from "../signals/types.js";
 
@@ -84,7 +84,7 @@ export function signalsSolved(ctx: SignalsContext, ids: string[]): SolvedResult 
   const manager = ctx.manager ?? new JsonSignalsManager(paths);
 
   const owned = new Map(manager.claimedBy(ctx.owner).map((s) => [s.id, s]));
-  const covered = loadCoverage(paths);
+  const rctx = resolutionContext(paths);
 
   const solved: string[] = [];
   const rejected: { id: string; reason: string }[] = [];
@@ -95,17 +95,12 @@ export function signalsSolved(ctx: SignalsContext, ids: string[]): SolvedResult 
     const sig = owned.get(id);
     if (!sig) {
       rejected.push({ id, reason: "not leased by you (unknown or already archived)" });
-    } else if (!isResolved(sig, covered)) {
-      rejected.push({
-        id,
-        reason:
-          sig.type === "orphaned"
-            ? `us:${sig.target} is still expanded by an AS block`
-            : `no AS block expands us:${sig.target}`,
-      });
+    } else if (!isResolved(sig, rctx)) {
+      rejected.push({ id, reason: unresolvedReason(sig) });
     } else {
       solved.push(id);
-      (sig.type === "orphaned" ? forgetTargets : recordTargets).push(sig.target);
+      if (sig.type === "orphaned") forgetTargets.push(sig.target);
+      else if (sig.type !== "validation_failed") recordTargets.push(sig.target);
     }
   }
 
@@ -113,6 +108,17 @@ export function signalsSolved(ctx: SignalsContext, ids: string[]): SolvedResult 
   forgetHashes(paths, forgetTargets);
   manager.solve(solved);
   return { solved, rejected };
+}
+
+function unresolvedReason(sig: Signal): string {
+  switch (sig.type) {
+    case "orphaned":
+      return `us:${sig.target} is still expanded by an AS block`;
+    case "validation_failed":
+      return `${sig.target} still fails \`clawloop spec validate\``;
+    default:
+      return `no AS block expands us:${sig.target}`;
+  }
 }
 
 /** Accept `us:cart-remove`, `#us:cart-remove`, or a bare `cart-remove`. Only US refs are gettable. */
