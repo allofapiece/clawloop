@@ -6,6 +6,8 @@ import type { Signal, SignalsManager } from "./signals/types.js";
 
 export interface ScanResult {
   created: Signal[];
+  /** Obsolete US-side signals removed because their block no longer exists. */
+  dropped: Signal[];
   pending: Signal[];
 }
 
@@ -64,5 +66,10 @@ export function scan(options: ScanOptions = {}): ScanResult {
     }
   }
 
-  return { created, pending: manager.list() };
+  // Prune obsolete US-side signals whose block was deleted — the orphaned signal supersedes them,
+  // and a "revise/create us:X" for a block that no longer exists is invalid.
+  const dropped = manager.list().filter((s) => s.type !== "orphaned" && !usIds.has(s.target));
+  manager.drop(dropped.map((s) => s.id));
+
+  return { created, dropped, pending: manager.list() };
 }

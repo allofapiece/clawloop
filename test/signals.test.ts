@@ -77,6 +77,19 @@ describe("JsonSignalsManager", () => {
     expect(reclaimed.signals[0].attempt).toBe(2); // claimed twice now
   });
 
+  it("drop removes pending signals without archiving and frees their lease", () => {
+    const m = makeManager();
+    m.add({ type: "uncovered", target: "a", file: "cart.md" });
+    const batch = m.claimBatch("w1")!;
+
+    m.drop(batch.signals.map((s) => s.id));
+
+    expect(m.pendingCount()).toBe(0);
+    expect(m.claimBatch("w2")).toBeNull(); // lease freed, nothing to claim
+    const done = JSON.parse(fs.readFileSync(resolvePaths(tmp).signalsDone, "utf8"));
+    expect(done).toEqual([]); // dropped, not archived
+  });
+
   it("reap reverts an expired lease so the file is reclaimable", () => {
     const m = makeManager(60_000);
     m.add({ type: "uncovered", target: "a", file: "cart.md" });

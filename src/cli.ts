@@ -189,8 +189,9 @@ async function main(): Promise<void> {
     }
     case "scan": {
       const { scan } = await import("./scan.js");
-      const { created, pending } = scan();
-      stdout.write(`scan: ${created.length} new signal(s), ${pending.length} pending\n`);
+      const { created, dropped, pending } = scan();
+      const droppedNote = dropped.length ? `, ${dropped.length} dropped` : "";
+      stdout.write(`scan: ${created.length} new signal(s)${droppedNote}, ${pending.length} pending\n`);
       return;
     }
     case "signals":

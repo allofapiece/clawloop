@@ -106,6 +106,18 @@ export class JsonSignalsManager implements SignalsManager {
     });
   }
 
+  drop(ids: string[]): void {
+    if (ids.length === 0) return;
+    const set = new Set(ids);
+    this.mutate((st) => {
+      st.signals = st.signals.filter((s) => !set.has(s.id));
+      for (const [file, lease] of Object.entries(st.leases)) {
+        lease.signalIds = lease.signalIds.filter((id) => !set.has(id));
+        if (lease.signalIds.length === 0) delete st.leases[file];
+      }
+    });
+  }
+
   releaseOwner(owner: string): void {
     this.mutate((st) => {
       for (const [file, lease] of Object.entries(st.leases)) {

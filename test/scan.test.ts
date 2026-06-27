@@ -104,6 +104,21 @@ describe("scan", () => {
     expect(orphans).toEqual([]);
   });
 
+  it("drops a stale US-side signal when its block is deleted, keeping only the orphaned signal", () => {
+    // 1) a US block with no AS yet → uncovered signal queued
+    usFile("beta.md", "(beta)=\nBeta desired state.");
+    expect(scan({ cwd: tmp, now: NOW }).created.map((s) => s.type)).toEqual(["uncovered"]);
+
+    // 2) the US block is deleted, but an AS block still expands it
+    fs.rmSync(path.join(tmp, ".clawloop/user-spec/beta.md"));
+    asFile("beta.md", "(as-beta)=\n## Beta\n:expands: us:beta\n\nbody");
+
+    const result = scan({ cwd: tmp, now: NOW });
+
+    expect(result.dropped.map((s) => s.type)).toEqual(["uncovered"]); // stale uncovered pruned
+    expect(result.pending.map((s) => `${s.type}:${s.target}`)).toEqual(["orphaned:beta"]); // only orphan remains
+  });
+
   it("errors on a globally-duplicate US block id across files", () => {
     usFile("a.md", "(dup)=\nfirst");
     usFile("b.md", "(dup)=\nsecond");

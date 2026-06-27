@@ -35,7 +35,8 @@ export async function runIteration(deps: RunDeps, owner: string): Promise<Iterat
   if (reverted.length) log.debug(`reaped ${reverted.length} expired lease(s)`);
 
   log.debug("scanning user-spec and agent-spec");
-  const { created, pending } = scan({ cwd: deps.cwd, manager: deps.manager });
+  const { created, dropped, pending } = scan({ cwd: deps.cwd, manager: deps.manager });
+  if (dropped.length) log.info(`scan: dropped ${dropped.length} obsolete signal(s) for deleted block(s)`);
   if (created.length) log.info(`scan: ${created.length} new signal(s), ${pending.length} pending`);
   else log.debug(`scan: 0 new, ${pending.length} pending`);
 

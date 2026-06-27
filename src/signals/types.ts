@@ -51,6 +51,8 @@ export interface SignalsManager {
   heartbeat(owner: string): void;
   /** Archive signals as solved (removes them from the queue and any lease). */
   solve(ids: string[]): void;
+  /** Remove pending signals outright, NOT archived — for ones made obsolete (e.g. their block was deleted). */
+  drop(ids: string[]): void;
   /** Drop `owner`'s leases; their unsolved signals revert to pending (attempt already counted). */
   releaseOwner(owner: string): void;
   /** Revert expired leases to pending; returns the reverted signal ids. */
