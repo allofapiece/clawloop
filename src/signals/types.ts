@@ -1,4 +1,4 @@
-export type SignalType = "uncovered" | "changed" | "revisit";
+export type SignalType = "uncovered" | "changed" | "revisit" | "orphaned";
 
 /** A unit of elaboration work. Durable + committed (the queue is part of `.clawloop`). */
 export interface Signal {

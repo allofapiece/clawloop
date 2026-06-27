@@ -1,8 +1,8 @@
 import { resolvePaths } from "../store.js";
 import { loadBlocks } from "../spec/load.js";
 import { JsonSignalsManager } from "../signals/json-manager.js";
-import { loadCoverage } from "../elaborator/validate.js";
-import { recordHashes } from "../elaborator/elaborator.js";
+import { loadCoverage, isResolved } from "../elaborator/validate.js";
+import { recordHashes, forgetHashes } from "../elaborator/elaborator.js";
 import type { Signal, SignalsManager } from "../signals/types.js";
 
 export interface SignalsContext {
@@ -88,21 +88,29 @@ export function signalsSolved(ctx: SignalsContext, ids: string[]): SolvedResult 
 
   const solved: string[] = [];
   const rejected: { id: string; reason: string }[] = [];
-  const targets: string[] = [];
+  const recordTargets: string[] = [];
+  const forgetTargets: string[] = [];
 
   for (const id of ids) {
     const sig = owned.get(id);
     if (!sig) {
       rejected.push({ id, reason: "not leased by you (unknown or already archived)" });
-    } else if (!covered.has(sig.target)) {
-      rejected.push({ id, reason: `no AS block expands us:${sig.target}` });
+    } else if (!isResolved(sig, covered)) {
+      rejected.push({
+        id,
+        reason:
+          sig.type === "orphaned"
+            ? `us:${sig.target} is still expanded by an AS block`
+            : `no AS block expands us:${sig.target}`,
+      });
     } else {
       solved.push(id);
-      targets.push(sig.target);
+      (sig.type === "orphaned" ? forgetTargets : recordTargets).push(sig.target);
     }
   }
 
-  recordHashes(paths, targets);
+  recordHashes(paths, recordTargets);
+  forgetHashes(paths, forgetTargets);
   manager.solve(solved);
   return { solved, rejected };
 }

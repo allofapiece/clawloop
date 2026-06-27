@@ -84,6 +84,26 @@ describe("scan", () => {
     expect(second.pending).toHaveLength(1);
   });
 
+  it("emits an orphaned signal when an AS expands a US block that no longer exists", () => {
+    // AS references us:gone, but no US block defines it (the US file was deleted).
+    asFile("ghost.md", "(as-ghost)=\n## Ghost\n:expands: us:gone\n\nbody");
+
+    const { created } = scan({ cwd: tmp, now: NOW });
+
+    expect(created).toEqual([
+      { id: "sig-1", type: "orphaned", target: "gone", file: "ghost.md", attempt: 0, createdAt: NOW() },
+    ]);
+  });
+
+  it("does not emit orphaned when the US block still exists", () => {
+    usFile("cart.md", "(cart-remove)=\nremove control");
+    asFile("btn.md", "(as-btn)=\n## Button\n:expands: us:cart-remove\n\nbody");
+    writeState({ "cart-remove": parseHash("(cart-remove)=\nremove control") });
+
+    const orphans = scan({ cwd: tmp, now: NOW }).created.filter((s) => s.type === "orphaned");
+    expect(orphans).toEqual([]);
+  });
+
   it("errors on a globally-duplicate US block id across files", () => {
     usFile("a.md", "(dup)=\nfirst");
     usFile("b.md", "(dup)=\nsecond");

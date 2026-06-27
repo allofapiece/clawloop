@@ -127,6 +127,8 @@ Example — US: "the next leap year is resolved and saved to leap.txt".
   listing the US ids it details, e.g. \`:expands: us:cart-remove\`. An AS block may also depend on
   other AS blocks via \`as:<id>\`.
 - Only elaborate the targets named for this iteration. Do not touch unrelated blocks.
+- If a target is marked REMOVE, its User Spec block was deleted — delete the Agent Spec that
+  expands it (and the file if it becomes empty). Do not re-create it.
 
 You may read any User Spec file for context. To also work on a related block in another file,
 claim it first with \`clawloop signals get us:<id>\`. Report finished targets with

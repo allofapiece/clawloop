@@ -35,20 +35,33 @@ export function scan(options: ScanOptions = {}): ScanResult {
   const as = loadBlocks(paths.agentSpec);
   const recorded = readState(paths).usHashes;
 
+  const usIds = new Set(us.map((b) => b.id));
   const covered = new Set<string>();
   for (const block of as) {
     for (const ref of block.expands) if (ref.kind === "us") covered.add(ref.id);
   }
 
   const created: Signal[] = [];
-  for (const block of us) {
-    let signal: Signal | null = null;
-    if (!covered.has(block.id)) {
-      signal = manager.add({ type: "uncovered", target: block.id, file: block.file });
-    } else if (recorded[block.id] !== block.hash) {
-      signal = manager.add({ type: "changed", target: block.id, file: block.file });
-    }
+  const add = (signal: Signal | null) => {
     if (signal) created.push(signal);
+  };
+
+  // US side: blocks needing (re-)elaboration.
+  for (const block of us) {
+    if (!covered.has(block.id)) {
+      add(manager.add({ type: "uncovered", target: block.id, file: block.file }));
+    } else if (recorded[block.id] !== block.hash) {
+      add(manager.add({ type: "changed", target: block.id, file: block.file }));
+    }
+  }
+
+  // AS side: blocks expanding a US id that no longer exists → orphaned, to be removed.
+  for (const block of as) {
+    for (const ref of block.expands) {
+      if (ref.kind === "us" && !usIds.has(ref.id)) {
+        add(manager.add({ type: "orphaned", target: ref.id, file: block.file }));
+      }
+    }
   }
 
   return { created, pending: manager.list() };

@@ -70,6 +70,42 @@ describe("runIteration", () => {
     expect(state.usHashes["cart-remove"]).toBeTruthy();
   });
 
+  it("resolves an orphaned signal when the agent removes the dangling AS", async () => {
+    // AS expands a US block that doesn't exist; the agent's job is to delete it.
+    const asPath = path.join(tmp, ".clawloop/agent-spec/ghost.md");
+    fs.writeFileSync(asPath, "(as-ghost)=\n## Ghost\n:expands: us:gone\n\nbody");
+    fs.writeFileSync(path.join(tmp, ".clawloop/state.json"), JSON.stringify({ usHashes: { gone: "h" } }));
+    const manager = new JsonSignalsManager(resolvePaths(tmp), { now });
+
+    // backend that removes the orphaned AS file (what a real agent would do)
+    const backend: Backend = {
+      async run(_p, opts) {
+        fs.rmSync(path.join(opts.cwd, ".clawloop/agent-spec/ghost.md"));
+        return { ok: true, stdout: "", stderr: "" };
+      },
+    };
+
+    const summary = await runIteration({ cwd: tmp, manager, backend }, "w1");
+
+    expect(summary).toMatchObject({ idle: false, solved: 1 });
+    expect(manager.pendingCount()).toBe(0); // orphan archived
+    const state = JSON.parse(fs.readFileSync(resolvePaths(tmp).state, "utf8"));
+    expect(state.usHashes.gone).toBeUndefined(); // stale hash forgotten
+  });
+
+  it("leaves an orphaned signal pending when the agent does NOT remove the dangling AS", async () => {
+    fs.writeFileSync(
+      path.join(tmp, ".clawloop/agent-spec/ghost.md"),
+      "(as-ghost)=\n## Ghost\n:expands: us:gone\n\nbody",
+    );
+    const manager = new JsonSignalsManager(resolvePaths(tmp), { now });
+
+    const summary = await runIteration({ cwd: tmp, manager, backend: noopBackend }, "w1");
+
+    expect(summary).toMatchObject({ idle: false, solved: 0 });
+    expect(manager.pendingCount()).toBe(1); // still orphaned → reverts to pending
+  });
+
   it("reverts to pending (no hash recorded) when the agent produces no covering AS", async () => {
     usFile("cart.md", "(cart-remove)=\nEach cart row has a remove control.");
     const manager = new JsonSignalsManager(resolvePaths(tmp), { now });

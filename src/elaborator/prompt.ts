@@ -19,6 +19,8 @@ function intentLine(s: Signal): string {
       return `- REVISE Agent Spec for \`us:${s.target}\` (signal ${s.id}) — its User Spec text changed.`;
     case "revisit":
       return `- REVISIT \`us:${s.target}\` (signal ${s.id}) — reconsider and improve its existing Agent Spec.`;
+    case "orphaned":
+      return `- REMOVE the Agent Spec expanding \`us:${s.target}\` (signal ${s.id}) — that User Spec block was deleted.`;
   }
 }
 

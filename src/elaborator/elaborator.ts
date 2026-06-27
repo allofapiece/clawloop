@@ -39,6 +39,14 @@ export function recordHashes(paths: Paths, targets: string[]): string[] {
   return recorded;
 }
 
+/** Drop recorded US hashes for removed/orphaned targets so state.json stays clean. */
+export function forgetHashes(paths: Paths, targets: string[]): void {
+  if (targets.length === 0) return;
+  const state = readState(paths);
+  for (const target of targets) delete state.usHashes[target];
+  writeState(paths, state);
+}
+
 export function appendDiary(paths: Paths, line: string): void {
   fs.appendFileSync(paths.diary, `${new Date().toISOString()} ${line}\n`);
 }
