@@ -27,8 +27,6 @@ function intentLine(s: Signal): string {
 /** Build the elaborator prompt. Pure — no I/O, fully unit-testable. */
 export function buildElaboratorPrompt(parts: PromptParts): string {
   const { instructions, usContext, diaryTail, batch } = parts;
-  const asFile = `.clawloop/agent-spec/${batch.file}`;
-
   const sections = [
     instructions.trim(),
     "## User Spec (source of truth — READ ONLY, never edit)\n\n" + usContext.trim(),
@@ -42,18 +40,22 @@ export function buildElaboratorPrompt(parts: PromptParts): string {
     [
       "## This iteration",
       "",
-      `Write the Agent Spec to \`${asFile}\` (mirror the User Spec file path).`,
       "Elaborate ONLY these targets — do not create AS for any other block:",
       "",
       batch.signals.map(intentLine).join("\n"),
       "",
-      "For each target, write an AS block whose `:expands:` includes `us:<target-id>`.",
-      "Give the desired end-state (by its criteria, not a hard-coded result), the method to reach it,",
-      "and verification steps. Use project-relative paths; never hard-code time/environment-dependent values.",
+      "Write the Agent Spec under `.clawloop/agent-spec/`. The file/block layout is YOURS to decide —",
+      "it need not mirror the User Spec. Split a complex target across as many well-named files as the",
+      "design needs; a trivial one may be a single block. Existing Agent Spec lives in",
+      "`.clawloop/agent-spec/` — to revise or remove a target, find the blocks that `:expands:` it there",
+      "and edit them in place.",
       "",
-      "If a related block in another file must change too, claim it with",
-      "`clawloop signals get us:<id>`. When you finish targets, report them with",
-      "`clawloop signals solved <signal-id>,<signal-id>`.",
+      "Each AS block must include `:expands:` with the US id(s) it details. Give the desired end-state",
+      "(by its criteria, not a hard-coded result), the method to reach it, and verification steps. Use",
+      "project-relative paths; never hard-code time/environment-dependent values.",
+      "",
+      "If a related block in another file must change too, claim it with `clawloop signals get us:<id>`.",
+      "When you finish targets, report them with `clawloop signals solved <signal-id>,<signal-id>`.",
     ].join("\n"),
   );
 

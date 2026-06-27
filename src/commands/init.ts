@@ -127,6 +127,15 @@ goal and the method, it does not pre-bake a result.
   suitable …". Decide the method now.
 - Don't edit the User Spec, and never write an AS that contradicts it.
 
+## Structure — you decide it
+- Organize the Agent Spec into as many files and blocks as the design needs, under
+  \`.clawloop/agent-spec/\`. The layout is YOURS; it need NOT mirror the User Spec. One US block may
+  expand into many AS blocks across many files (a large feature); a trivial one may be a single block.
+  Name files for the design.
+- The \`:expands:\` line IS the mapping from US to AS: it links a US block to the AS block(s) that
+  detail it, regardless of which file they live in. To revise or remove a target later, find the AS
+  blocks that \`:expands:\` it (search \`.clawloop/agent-spec/\`) and edit them in place.
+
 ## Format
 - Write each AS block as a MyST block with an \`(id)=\` label or heading, and a \`:expands:\` line
   listing the US ids it details, e.g. \`:expands: us:cart-remove\`. An AS block may also depend on

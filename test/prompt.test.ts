@@ -13,7 +13,7 @@ const batch: Batch = {
 };
 
 describe("buildElaboratorPrompt", () => {
-  it("names the mirrored AS file, the targets, and create-vs-revise intents", () => {
+  it("points at the agent-spec dir (no forced mirror), the targets, and create-vs-revise intents", () => {
     const prompt = buildElaboratorPrompt({
       instructions: "INSTRUCTIONS",
       usContext: "US BODY",
@@ -23,7 +23,8 @@ describe("buildElaboratorPrompt", () => {
 
     expect(prompt).toContain("INSTRUCTIONS");
     expect(prompt).toContain("US BODY");
-    expect(prompt).toContain("agent-spec/cart.md");
+    expect(prompt).toContain(".clawloop/agent-spec/");
+    expect(prompt).toContain("layout is YOURS to decide"); // no forced 1:1 mirror
     expect(prompt).toContain("CREATE Agent Spec for `us:cart-remove` (signal sig-1)");
     expect(prompt).toContain("REVISE Agent Spec for `us:cart-clear` (signal sig-2)");
     expect(prompt).toContain("REVISIT `us:cart-empty` (signal sig-3)");
