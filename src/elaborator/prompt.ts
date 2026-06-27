@@ -48,7 +48,7 @@ export function buildElaboratorPrompt(parts: PromptParts): string {
       batch.signals.map(intentLine).join("\n"),
       "",
       "For each target, write an AS block whose `:expands:` includes `us:<target-id>`.",
-      "Describe the complete desired END-STATE in detail — not a program or implementation.",
+      "Specify the complete desired end-state AND fully design how to reach it — leave no decision to the implementer.",
       "",
       "If a related block in another file must change too, claim it with",
       "`clawloop signals get us:<id>`. When you finish targets, report them with",

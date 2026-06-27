@@ -43,9 +43,11 @@ export async function runIteration(deps: RunDeps, owner: string): Promise<Iterat
   const batch = deps.manager.claimBatch(owner);
   if (!batch) return { idle: true };
 
-  log.info(`iteration ${owner}: elaborating ${batch.file} (${batch.signals.length} target(s))`);
+  log.info(`iteration ${owner}: spec ${batch.file} — taking ${batch.signals.length} signal(s)`);
+  for (const s of batch.signals) log.info(`  · taking signal ${s.id} (${s.type} → us:${s.target})`);
   try {
     // The agent writes AS and may explicitly `signals solved` / `signals get` more work.
+    log.info(`elaborating ${batch.file} — handing ${batch.signals.length} target(s) to the backend`);
     log.debug(`running backend for ${batch.file}`);
     await runElaboration(batch, deps.backend, paths);
 
