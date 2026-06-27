@@ -132,17 +132,30 @@ goal and the method, it does not pre-bake a result.
   \`.clawloop/agent-spec/\`. The layout is YOURS; it need NOT mirror the User Spec. One US block may
   expand into many AS blocks across many files (a large feature); a trivial one may be a single block.
   Name files for the design.
-- The \`:expands:\` line IS the mapping from US to AS: it links a US block to the AS block(s) that
-  detail it, regardless of which file they live in. To revise or remove a target later, find the AS
-  blocks that \`:expands:\` it (search \`.clawloop/agent-spec/\`) and edit them in place.
+- Every AS block is part of the graph. Each block links to the rest via \`:expands:\` (the US block(s)
+  it details) and/or \`:depends-on:\` (other AS blocks it relies on). Don't leave loose, unlinked prose
+  blocks — shared context (e.g. fixed technology decisions) must be its own labeled block that the
+  others \`:depends-on:\`.
+- To revise or remove a target later, find the AS blocks that \`:expands:\` it (search
+  \`.clawloop/agent-spec/\`) and edit them in place.
 
 ## Format
-- Write each AS block as a MyST block with an \`(id)=\` label or heading, and a \`:expands:\` line
-  listing the US ids it details, e.g. \`:expands: us:cart-remove\`. An AS block may also depend on
-  other AS blocks via \`as:<id>\`.
+- Every AS block MUST have an explicit \`(id)=\` label on the line directly before its heading — never
+  rely on a heading slug for the id (slugs change when you reword a heading). Put the metadata fields
+  on the lines right after the heading:
+  \`\`\`
+  (moon-phase-math)=
+  ## Moon-phase computation
+  :expands: us:general
+  :depends-on: as:project-layout
+  \`\`\`
+- \`:expands:\` lists the US block ids this block details (the US→AS mapping that drives coverage).
+  \`:depends-on:\` lists the AS block ids this block relies on (the AS dependency graph).
 - Only elaborate the targets named for this iteration. Do not touch unrelated blocks.
 - If a target is marked REMOVE, its User Spec block was deleted — delete the Agent Spec that expands
   it (and the file if it becomes empty). Do not re-create it.
+- When you finish, run \`clawloop spec validate\` and fix every error it reports (dangling refs) and,
+  ideally, its warnings (loose or unlabeled blocks) before reporting the targets solved.
 
 You may read any User Spec file for context. To also work on a related block in another file, claim it
 first with \`clawloop signals get us:<id>\`. Report finished targets with

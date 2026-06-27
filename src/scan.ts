@@ -40,7 +40,7 @@ export function scan(options: ScanOptions = {}): ScanResult {
   const usIds = new Set(us.map((b) => b.id));
   const covered = new Set<string>();
   for (const block of as) {
-    for (const ref of block.expands) if (ref.kind === "us") covered.add(ref.id);
+    for (const id of block.expands) covered.add(id);
   }
 
   const created: Signal[] = [];
@@ -59,9 +59,9 @@ export function scan(options: ScanOptions = {}): ScanResult {
 
   // AS side: blocks expanding a US id that no longer exists → orphaned, to be removed.
   for (const block of as) {
-    for (const ref of block.expands) {
-      if (ref.kind === "us" && !usIds.has(ref.id)) {
-        add(manager.add({ type: "orphaned", target: ref.id, file: block.file }));
+    for (const id of block.expands) {
+      if (!usIds.has(id)) {
+        add(manager.add({ type: "orphaned", target: id, file: block.file }));
       }
     }
   }

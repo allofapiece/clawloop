@@ -6,7 +6,7 @@ import type { Signal } from "../signals/types.js";
 export function loadCoverage(paths: Paths): Set<string> {
   const covered = new Set<string>();
   for (const block of loadBlocks(paths.agentSpec)) {
-    for (const ref of block.expands) if (ref.kind === "us") covered.add(ref.id);
+    for (const id of block.expands) covered.add(id);
   }
   return covered;
 }

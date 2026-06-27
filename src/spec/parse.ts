@@ -11,29 +11,26 @@ import crypto from "node:crypto";
  * The block id is the label (for `(id)=`) or the slugified heading text. Within a file, colliding
  * heading slugs are suffixed (`setup`, `setup-2`); a colliding explicit label is an error.
  *
- * The content hash covers the whole block EXCEPT the `(id)=` line and any `:expands:` metadata line.
+ * The content hash covers the whole block EXCEPT the `(id)=` line and the `:expands:` / `:depends-on:`
+ * metadata lines.
  */
-export type RefKind = "us" | "as";
-
-export interface Ref {
-  kind: RefKind;
-  id: string;
-}
-
 export interface Block {
   /** Stable id: the `(id)=` label, or the slugified heading, or `<file-stem>-beginning`. */
   id: string;
   /** True when the id came from an explicit `(id)=` label (vs a heading slug). */
   fromLabel: boolean;
-  /** sha256 (hex) of the normalized content, excluding the `(id)=` and `:expands:` lines. */
+  /** sha256 (hex) of the normalized content, excluding the metadata lines. */
   hash: string;
-  /** Parsed `:expands:` refs (empty for most US blocks). */
-  expands: Ref[];
+  /** US block ids this AS block details (from `:expands:`). Empty for US blocks. */
+  expands: string[];
+  /** AS block ids this AS block depends on (from `:depends-on:`). */
+  dependsOn: string[];
 }
 
 const LABEL_RE = /^\(([^)]+)\)=\s*$/;
 const HEADING_RE = /^#{1,6}\s+(.*\S)\s*$/;
 const EXPANDS_RE = /^:expands:\s*(.*)$/;
+const DEPENDS_RE = /^:depends-on:\s*(.*)$/;
 const REF_RE = /^(us|as):(.+)$/;
 
 /** Slugify heading text: lowercase, non-alphanumerics → single hyphen, trimmed. */
@@ -44,14 +41,20 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function parseExpands(value: string): Ref[] {
-  const refs: Ref[] = [];
+/** Parse a metadata ref list. A `kind:id` token counts only for the field's expected kind; a bare
+ *  token is taken as-is (the field name already says what kind it is). */
+function parseRefs(value: string, kind: "us" | "as"): string[] {
+  const ids: string[] = [];
   for (const token of value.trim().split(/\s+/)) {
     if (!token) continue;
     const m = token.match(REF_RE);
-    if (m) refs.push({ kind: m[1] as RefKind, id: m[2] });
+    if (m) {
+      if (m[1] === kind) ids.push(m[2]);
+    } else {
+      ids.push(token);
+    }
   }
-  return refs;
+  return ids;
 }
 
 function hash(content: string): string {
@@ -114,11 +117,17 @@ function finalize(raw: RawBlock[]): Block[] {
 
   for (const b of raw) {
     const contentLines: string[] = [];
-    const expands: Ref[] = [];
+    const expands: string[] = [];
+    const dependsOn: string[] = [];
     for (const line of b.lines) {
       const ex = line.match(EXPANDS_RE);
       if (ex) {
-        expands.push(...parseExpands(ex[1])); // metadata — excluded from hash
+        expands.push(...parseRefs(ex[1], "us")); // metadata — excluded from hash
+        continue;
+      }
+      const dep = line.match(DEPENDS_RE);
+      if (dep) {
+        dependsOn.push(...parseRefs(dep[1], "as")); // metadata — excluded from hash
         continue;
       }
       contentLines.push(line);
@@ -135,7 +144,7 @@ function finalize(raw: RawBlock[]): Block[] {
     }
     seen.set(b.id, count + 1);
 
-    blocks.push({ id, fromLabel: b.fromLabel, hash: hash(content), expands });
+    blocks.push({ id, fromLabel: b.fromLabel, hash: hash(content), expands, dependsOn });
   }
 
   return blocks;

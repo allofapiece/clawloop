@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { runInit, DEFAULT_USER_SPEC } from "./commands/init.js";
 
 interface ParsedCli {
-  command: "init" | "run" | "scan" | "signals" | "help";
+  command: "init" | "run" | "scan" | "signals" | "spec" | "help";
   /** init: skip the interactive survey and use defaults. */
   yes?: boolean;
   /** run: do a single iteration and exit. */
@@ -56,6 +56,15 @@ export function parseCliArgs(argv: string[]): ParsedCli {
     return { command: "scan" };
   }
 
+  if (first === "spec") {
+    const [action, ...args] = rest;
+    if (action === "validate") {
+      if (args.length > 0) return { command: "spec", error: "`spec validate` takes no arguments" };
+      return { command: "spec" };
+    }
+    return { command: "spec", error: `unknown spec subcommand "${action ?? ""}" (use validate)` };
+  }
+
   if (first === "signals") {
     const [action, ...args] = rest;
     if (action === "get") {
@@ -96,6 +105,7 @@ const HELP = [
   "  signals get <us:id>        Claim another block's batch (agent, in-iteration).",
   "  signals solved <ids>       Mark signals solved (agent, in-iteration).",
   "  signals add revisit:<id|all>   Queue re-elaboration of covered block(s).",
+  "  spec validate                  Report dangling refs / loose / unlabeled AS blocks.",
   "  help         Show this help.",
   "",
 ].join("\n");
@@ -197,6 +207,18 @@ async function main(): Promise<void> {
     case "signals":
       await runSignalsCommand(parsed);
       return;
+    case "spec": {
+      const { validateSpec } = await import("./commands/spec.js");
+      const problems = validateSpec(process.cwd());
+      for (const p of problems) {
+        stdout.write(`${p.level === "error" ? "✗" : "⚠"} ${p.file} [${p.block}]: ${p.message}\n`);
+      }
+      const errors = problems.filter((p) => p.level === "error").length;
+      const warns = problems.length - errors;
+      stdout.write(`spec validate: ${errors} error(s), ${warns} warning(s)\n`);
+      if (errors > 0) process.exitCode = 1;
+      return;
+    }
     case "help":
       stdout.write(HELP);
       return;

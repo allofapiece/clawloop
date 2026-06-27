@@ -44,17 +44,21 @@ describe("parseBlocks", () => {
     expect(() => parseBlocks("(a)=\nx\n\n(a)=\ny", "f")).toThrow(/duplicate explicit block id/);
   });
 
-  it("parses namespaced :expands: refs and excludes the line from the hash", () => {
-    const withExpands = parseBlocks(
-      "(as-btn)=\n## Button\n:expands: us:cart-remove as:button-design\n\nbody",
+  it("parses :expands: (us) and :depends-on: (as) and excludes both lines from the hash", () => {
+    const withMeta = parseBlocks(
+      "(as-btn)=\n## Button\n:expands: us:cart-remove\n:depends-on: as:button-design\n\nbody",
       "as",
     );
     const without = parseBlocks("(as-btn)=\n## Button\n\nbody", "as");
-    expect(withExpands[0].expands).toEqual([
-      { kind: "us", id: "cart-remove" },
-      { kind: "as", id: "button-design" },
-    ]);
-    expect(withExpands[0].hash).toBe(without[0].hash);
+    expect(withMeta[0].expands).toEqual(["cart-remove"]);
+    expect(withMeta[0].dependsOn).toEqual(["button-design"]);
+    expect(withMeta[0].hash).toBe(without[0].hash);
+  });
+
+  it("accepts bare ids and ignores cross-kind refs in a field", () => {
+    const b = parseBlocks("(x)=\n## X\n:expands: general us:other as:nope\n\nbody", "as")[0];
+    expect(b.expands).toEqual(["general", "other"]); // bare + us:, but not as: in :expands:
+    expect(b.dependsOn).toEqual([]);
   });
 
   it("hash changes when the body changes but not when only the id label changes", () => {
