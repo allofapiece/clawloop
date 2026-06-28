@@ -23,6 +23,8 @@ function intentLine(s: Signal): string {
       return `- REMOVE the Agent Spec expanding \`us:${s.target}\` (signal ${s.id}) — that User Spec block was deleted.`;
     case "validation_failed":
       return `- FIX validation errors in \`${s.file}\` (signal ${s.id}): ${s.detail ?? "see clawloop spec validate"}`;
+    case "dep-changed":
+      return `- RECONCILE \`us:${s.target}\` (signal ${s.id}) — ${s.detail ?? "a dependency changed"}; update its Agent Spec to match.`;
   }
 }
 

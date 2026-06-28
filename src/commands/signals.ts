@@ -2,7 +2,7 @@ import { resolvePaths } from "../store.js";
 import { loadBlocks } from "../spec/load.js";
 import { JsonSignalsManager } from "../signals/json-manager.js";
 import { resolutionContext, isResolved } from "../elaborator/validate.js";
-import { recordHashes, forgetHashes } from "../elaborator/elaborator.js";
+import { recordHashes, forgetHashes, recordDepHashes } from "../elaborator/elaborator.js";
 import type { Signal, SignalsManager } from "../signals/types.js";
 
 export interface SignalsContext {
@@ -105,6 +105,7 @@ export function signalsSolved(ctx: SignalsContext, ids: string[]): SolvedResult 
   }
 
   recordHashes(paths, recordTargets);
+  recordDepHashes(paths, recordTargets); // advance reconciled dependency versions
   forgetHashes(paths, forgetTargets);
   manager.solve(solved);
   return { solved, rejected };

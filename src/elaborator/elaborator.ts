@@ -47,6 +47,37 @@ export function forgetHashes(paths: Paths, targets: string[]): void {
   writeState(paths, state);
 }
 
+/**
+ * Reconcile dependency versions: for every AS block that expands one of the just-solved US targets,
+ * record the current hash of each of its `:depends-on:` targets. This advances the block's
+ * "seen version" so the scan won't re-signal it for a dependency change it has now accounted for.
+ * Also prunes entries for AS blocks that no longer exist.
+ */
+export function recordDepHashes(paths: Paths, solvedUsTargets: string[]): void {
+  if (solvedUsTargets.length === 0) return;
+  const targets = new Set(solvedUsTargets);
+  const as = loadBlocks(paths.agentSpec);
+  const hashById = new Map(as.map((b) => [b.id, b.hash]));
+  const asIds = new Set(as.map((b) => b.id));
+  const state = readState(paths);
+
+  for (const x of as) {
+    if (!x.expands.some((u) => targets.has(u))) continue;
+    const seen: Record<string, string> = {};
+    for (const y of x.dependsOn) {
+      const h = hashById.get(y);
+      if (h !== undefined) seen[y] = h; // skip dangling deps (validation_failed handles those)
+    }
+    if (Object.keys(seen).length > 0) state.depHashes[x.id] = seen;
+    else delete state.depHashes[x.id];
+  }
+
+  for (const id of Object.keys(state.depHashes)) {
+    if (!asIds.has(id)) delete state.depHashes[id];
+  }
+  writeState(paths, state);
+}
+
 export function appendDiary(paths: Paths, line: string): void {
   fs.appendFileSync(paths.diary, `${new Date().toISOString()} ${line}\n`);
 }

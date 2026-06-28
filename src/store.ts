@@ -34,9 +34,12 @@ export interface Settings {
   };
 }
 
-/** Recorded US content hashes, keyed by US block id. Written by the elaborator; read by the scan. */
+/** Recorded hashes the elaborator writes and the scan reads to detect drift. */
 export interface State {
+  /** US block content hash, keyed by US block id. */
   usHashes: Record<string, string>;
+  /** Per AS block, the hash of each `:depends-on:` target it was last reconciled against. */
+  depHashes: Record<string, Record<string, string>>;
 }
 
 function readJson<T>(file: string, fallback: T): T {
@@ -77,7 +80,8 @@ export function resolvePaths(root: string): Paths {
 }
 
 export function readState(paths: Paths): State {
-  return readJson<State>(paths.state, { usHashes: {} });
+  const s = readJson<Partial<State>>(paths.state, {});
+  return { usHashes: s.usHashes ?? {}, depHashes: s.depHashes ?? {} };
 }
 
 export function writeState(paths: Paths, state: State): void {

@@ -4,7 +4,7 @@ import { scan } from "./scan.js";
 import { resolvePaths, readSettings } from "./store.js";
 import { JsonSignalsManager } from "./signals/json-manager.js";
 import { createBackend } from "./backend/claude-code.js";
-import { runElaboration, recordHashes, forgetHashes, appendDiary } from "./elaborator/elaborator.js";
+import { runElaboration, recordHashes, forgetHashes, recordDepHashes, appendDiary } from "./elaborator/elaborator.js";
 import { resolutionContext, isResolved } from "./elaborator/validate.js";
 import { log } from "./log.js";
 import type { Backend } from "./backend/backend.js";
@@ -56,8 +56,11 @@ export async function runIteration(deps: RunDeps, owner: string): Promise<Iterat
     const claimed = deps.manager.claimedBy(owner);
     const ctx = resolutionContext(paths);
     const solved = claimed.filter((s) => isResolved(s, ctx));
-    const usSide = (s: { type: string }) => s.type === "uncovered" || s.type === "changed" || s.type === "revisit";
-    recordHashes(paths, solved.filter(usSide).map((s) => s.target));
+    const usSide = (s: { type: string }) =>
+      s.type === "uncovered" || s.type === "changed" || s.type === "revisit" || s.type === "dep-changed";
+    const usTargets = solved.filter(usSide).map((s) => s.target);
+    recordHashes(paths, usTargets);
+    recordDepHashes(paths, usTargets); // advance reconciled dependency versions
     forgetHashes(paths, solved.filter((s) => s.type === "orphaned").map((s) => s.target));
     deps.manager.solve(solved.map((s) => s.id));
 
